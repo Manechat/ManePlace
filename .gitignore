@@ -1,3 +1,11 @@
+# ManePlace
+canvas
+
+# Greenlock
+.greenlockrc
+greenlock.d
+!greenlock.d/config.json
+
 # Logs
 logs
 *.log

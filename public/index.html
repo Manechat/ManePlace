@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;700&display=swap" rel="stylesheet">
+	<link rel="stylesheet" href="styles.css">
+	<title>ManePlace</title>
+</head>
+<body>
+	<div id="main">
+		<canvas id="canvas"></canvas>
+		<div id="selector">
+			<img id="selector-border" src="./images/selector.png">
+			<div id="selector-pixel" class="hidden">
+				<div id="pixel-border"></div>
+				<div id="pixel-color"></div>
+			</div>
+			<div style="display: flex; justify-content: center;">
+				<div id="placer-tooltip" class="tooltip fs-s">
+					u/mercurial
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<div id="ui">
+		<div style="display: flex; justify-content: center;">
+			<div id="share" class="white button" onpointerup="shareUrl()">
+				<img src="./images/arrow.svg" width="32px" height="32px">
+			</div>
+			<div id="share-tooltip" class="tooltip fs-s">
+				Link copied!
+			</div>
+		</div>
+
+		<div id="place" class="orange button" onpointerup="openPicker()">
+			<div class="action fs-m"><b>Place!</b></div>
+			<div class="info fs-s">(500, 500) 1X</div>
+		</div>
+		<div id="settings" class="hidden white button">
+			<img src="./images/dots.svg" width="20px" height="20px">
+		</div>
+	</div>
+
+	<div id="picker">
+		<div class="container">
+			<div id="colors">
+				<div class="color" style="background-color: red;" onpointerup="pickColor(this)"></div>
+				<div class="color" style="background-color: orangered;" onpointerup="pickColor(this)"></div>
+				<div class="color" style="background-color: orange;" onpointerup="pickColor(this)"></div>
+				<div class="color" style="background-color: yellow;" onpointerup="pickColor(this)"></div>
+				<div class="color" style="background-color: blue;" onpointerup="pickColor(this)"></div>
+				<div class="color" style="background-color: green;" onpointerup="pickColor(this)"></div>
+			</div>
+		</div>
+		<div class="container">
+			<div id="cancel" class="button" onpointerup="closePicker()">
+				<img src="./images/x.svg" width="40px" height="40px">
+			</div>
+			<div id="confirm" class="inactive orange button" onpointerup="placeColor()">
+				<img src="./images/checkmark.svg" width="40px" height="40px">
+			</div>
+		</div>
+	</div>
+
+	<div id="loading-screen">
+		<img src="./images/dance.gif">
+		<div><b>Loading...</b></div>
+	</div>
+
+	<script src="https://cdn.jsdelivr.net/npm/howler@2.2.3/dist/howler.min.js"></script>
+	<script src="./lib/panzoom_modified.js"></script>
+	<script src="./script.js"></script>
+</body>
+</html>

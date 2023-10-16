@@ -36,16 +36,12 @@ class ImageBuffer
 
 
 
-const defaultUserData = {
-	cooldown: 0
-};
-
-
 
 class UserDataStore
 {
-	constructor()
+	constructor(defaultUserData)
 	{
+		this._defaultUserData = defaultUserData;
 		this._map = new Map();
 	}
 
@@ -57,7 +53,7 @@ class UserDataStore
 
 		if(!userData)
 		{
-			this._map.set(userId, userData = structuredClone(defaultUserData));
+			this._map.set(userId, userData = structuredClone(this._defaultUserData));
 		}
 
 		return userData;
@@ -92,12 +88,15 @@ function hexToInt(hex)
 	return Number(`0x${hex}`);
 }
 
+const defaultCanvasUserData = { cooldown: 0 };
+
 class Canvas extends EventEmitter
 {
 	constructor()
 	{
 		super();
-		this.users = new UserDataStore();
+		this.pixelEvents = [];
+		this.users = new UserDataStore(defaultCanvasUserData);
 
 		setInterval(this._update.bind(this), 1000);
 	}
@@ -128,7 +127,7 @@ class Canvas extends EventEmitter
 	{
 		this.pixels.setColor(x, y, color);
 		this.info[x][y] = { userId, timestamp };
-		this.emit("pixel", x, y, color, userId, timestamp);
+		this.pixelEvents.push({ x, y, color, userId, timestamp });
 	}
 
 	isInBounds(x, y)
@@ -153,7 +152,9 @@ class Canvas extends EventEmitter
 			return false;
 		}
 
-		this._setPixel(x, y, color, userId, Date.now());
+		const timestamp = Date.now();
+		this._setPixel(x, y, color, userId, timestamp);
+		this.emit("pixel", x, y, color, userId, timestamp);
 
 		this.users.get(userId).cooldown = this.settings.maxCooldown;
 
@@ -163,10 +164,11 @@ class Canvas extends EventEmitter
 
 
 
-Canvas.IO = class
+Canvas.IO = class extends EventEmitter
 {
 	constructor(canvas, path)
 	{
+		super();
 		this._canvas = canvas;
 		this._path = path;
 
@@ -191,11 +193,12 @@ Canvas.IO = class
 			
 			const color = buf.readBuffer(3).readUintBE(0, 3);
 
-			const userId = buf.readBigUInt64BE();
-			const timestamp = buf.readBigUInt64BE();
+			const userId = buf.readBigUInt64BE().toString();
+			const timestamp = Number(buf.readBigUInt64BE());
 
-			this._canvas.pixels.setColor(x, y, color);
-			this._canvas.info[x][y] = { userId, timestamp };
+			this._canvas._setPixel(x, y, color, userId, timestamp);
+
+			this.emit("read", x, y, color, userId, timestamp);
 		}
 
 		return this;
@@ -227,6 +230,101 @@ Canvas.IO = class
 		buf.writeBuffer(colorBuf);
 
 		return buf.toBuffer();
+	}
+}
+
+
+
+
+const defaultUserStats = { pixelEvents: [] };
+
+Canvas.Stats = class
+{
+	constructor(canvas, io, getConnectedUserCount)
+	{
+		this.canvas = canvas;
+		this.getConnectedUserCount = getConnectedUserCount;
+
+		this.global = {
+			uniqueUserCount: 0,
+			colorCounts: {},
+			//
+			userCountOverTime: {},
+			pixelCountOverTime: {}
+		};
+
+		this.personal = new UserDataStore(defaultUserStats);
+		
+		//
+
+		canvas.addListener("pixel", this._updateRealTime.bind(this));
+		io.addListener("read", this._updateRealTime.bind(this));
+
+		// TODO: Yucky!
+		if(FileSystem.existsSync("./canvas/userCountOverTime.json"))
+		{
+			this.global.userCountOverTime = JSON.parse(FileSystem.readFileSync("./canvas/userCountOverTime.json", { encoding: "utf-8" }));
+		}
+	}
+
+	startRecording(intervalMs, durationMs)
+	{
+		this._recordingIntervalMs = intervalMs;
+		this._recordingDurationMs = durationMs;
+
+		Utils.startInterval(this._recordingIntervalMs, this._updateAtInterval.bind(this));
+	}
+
+	_updateRealTime(x, y, color, userId, timestamp)
+	{
+		this.global.colorCounts[color] ??= 0;
+		this.global.colorCounts[color]++;
+
+		this.personal.get(userId).pixelEvents.push({ x, y, color, userId, timestamp });
+	}
+
+	_updateAtInterval()
+	{
+		console.log("Updated stats");
+
+		const currentTimeMs = Date.now();
+		const startTimeMs = currentTimeMs - this._recordingDurationMs;
+		const intervalTimeMs = this._recordingIntervalMs;
+
+
+
+		this.global.uniqueUserCount = new Set(this.canvas.pixelEvents.map(pixelEvent => pixelEvent.userId)).size; // TODO: update in real time?
+
+
+
+		for(const timestamp in this.global.userCountOverTime)
+		{
+			if(timestamp < startTimeMs)
+			{
+				delete this.global.userCountOverTime[timestamp];
+			}
+		}
+
+		this.global.userCountOverTime[currentTimeMs] = this.getConnectedUserCount();
+
+		// TODO: Yucky!
+		FileSystem.writeFileSync("./canvas/userCountOverTime.json", JSON.stringify(this.global.userCountOverTime));
+
+
+
+		// TODO This will break if there are periods of 0 placement
+		// TOOD So we need to fill out those intervals manually, make sure they are present
+		this.global.pixelCountOverTime = this.canvas.pixelEvents.groupBy(pixelEvent =>
+		{
+			const intervalStartTimeMs = Math.floor( (pixelEvent.timestamp - startTimeMs) / intervalTimeMs ) * intervalTimeMs;
+	
+			return pixelEvent.timestamp < startTimeMs ? undefined : intervalStartTimeMs + startTimeMs;
+		} );
+
+		for(const timestamp in this.global.pixelCountOverTime)
+		{
+			this.global.pixelCountOverTime[timestamp] = this.global.pixelCountOverTime[timestamp].length;
+		}
 	}
 }
 

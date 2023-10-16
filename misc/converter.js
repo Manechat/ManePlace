@@ -2,41 +2,77 @@ const FileSystem = require("fs");
 const SmartBuffer = require("smart-buffer").SmartBuffer;
 const PNG = require("pngjs").PNG;
 
-function toPng(fromPath, toPath, sizeX, sizeY)
+// copied from canvas.js
+function readEvents(path)
 {
-	const png = new PNG({ width: sizeX, height: sizeY });
+	const events = [];
 
-	const buf = SmartBuffer.fromBuffer(FileSystem.readFileSync(fromPath));
+	const buf = SmartBuffer.fromBuffer(FileSystem.readFileSync(path));
 
 	while(buf.remaining() > 0)
 	{
 		const x = buf.readUInt16BE();
 		const y = buf.readUInt16BE();
 		
-		const red = buf.readUInt8();
-		const green = buf.readUInt8();
-		const blue = buf.readUInt8();
+		const color = buf.readBuffer(3).readUintBE(0, 3);
 
-		const idx = (x + y * sizeX) * 4;
-		png.data[idx + 0] = red;
-		png.data[idx + 1] = green;
-		png.data[idx + 2] = blue;
-		png.data[idx + 3] = 255;
+		const userId = Number(buf.readBigUInt64BE());
+		const timestamp = buf.readBigUInt64BE().toString();
 
-		const userId = buf.readBigUInt64BE();
-		const timestamp = buf.readBigUInt64BE();
+		events.push({ x, y, color, userId, timestamp });
 	}
 
-	FileSystem.writeFileSync(toPath, PNG.sync.write(png));
+	return events;
 }
 
-function fromPng(fromPath, toPath, userId)
+// same
+function writeEvents(events, path)
 {
-	const png = PNG.sync.read(FileSystem.readFileSync(fromPath));
-
 	const buf = new SmartBuffer();
 
-	const time = Date.now();
+	for(const event of events)
+	{
+		buf.writeUInt16BE(event.x);
+		buf.writeUInt16BE(event.y);
+
+		const colorBuf = Buffer.alloc(3);
+		colorBuf.writeUIntBE(event.color, 0, 3);
+		buf.writeBuffer(colorBuf);
+
+		buf.writeBigInt64BE(BigInt(event.userId));
+		buf.writeBigUInt64BE(BigInt(event.timestamp));
+	}
+
+	FileSystem.writeFileSync(path, buf.toBuffer());
+}
+
+
+
+
+
+
+function eventsToPng(events, path, sizeX, sizeY)
+{
+	const png = new PNG({ width: sizeX, height: sizeY });
+
+	for(const event of events)
+	{
+		const idx = (event.x + event.y * sizeX) * 4;
+
+		png.data.writeUintBE(event.color, idx, 3);
+		png.data[idx + 3] = 255;
+	}
+
+	FileSystem.writeFileSync(path, PNG.sync.write(png));
+}
+
+function pngToEvents(path, userId)
+{
+	const png = PNG.sync.read(FileSystem.readFileSync(path));
+
+	const timestamp = Date.now();
+
+	const events = [];
 
 	for(let y = 0; y < png.height; ++y)
 	{
@@ -44,9 +80,7 @@ function fromPng(fromPath, toPath, userId)
 		{
 			const idx = (x + y * png.width) * 4;
 			
-			const red = png.data[idx + 0];
-			const green = png.data[idx + 1];
-			const blue = png.data[idx + 2];
+			const color = png.data.readUintBE(idx, 3);
 			const alpha = png.data[idx + 3];
 
 			if(alpha === 0)
@@ -54,20 +88,11 @@ function fromPng(fromPath, toPath, userId)
 				continue;
 			}
 
-			buf.writeUInt16BE(x);
-			buf.writeUInt16BE(y);
-
-			buf.writeUInt8(red);
-			buf.writeUInt8(green);
-			buf.writeUInt8(blue);
-
-			buf.writeBigInt64BE(BigInt(userId));
-			buf.writeBigUInt64BE(BigInt(time));
+			events.push({ x, y, color, userId, timestamp });
 		}
 	}
 
-	FileSystem.writeFileSync(toPath, buf.toBuffer());
+	return events;
 }
 
-toPng("./canvas/current_1.hst", "./current.png", 500, 500);
-//fromPng("./base.png", "./current.hst", "245197038231355393");
+module.exports = { readEvents, writeEvents, eventsToPng, pngToEvents };

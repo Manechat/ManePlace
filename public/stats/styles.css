@@ -1,0 +1,202 @@
+/*
+*	Josh's Custom CSS Reset
+*	https://www.joshwcomeau.com/css/custom-css-reset/
+*/
+
+*, *::before, *::after
+{
+	box-sizing: border-box;
+}
+
+*
+{
+	margin: 0;
+	padding: 0;
+}
+
+html, body
+{
+	height: 100%;
+	width: 100%;
+}
+
+body
+{
+	line-height: 1.5;
+	-webkit-font-smoothing: antialiased;
+}
+
+img, picture, video, canvas, svg
+{
+	display: block;
+	max-width: 100%;
+}
+
+input, button, textarea, select
+{
+	font: inherit;
+}
+
+/*
+ *
+ */
+
+.fs-s
+{
+	font-size: 1em;
+}
+
+.fs-m
+{
+	font-size: 1.5em;
+}
+
+.fs-l
+{
+	font-size: 2em;
+}
+
+.fs-xl
+{
+	font-size: 2.5em;
+}
+
+.b
+{
+	font-weight: 700;
+}
+
+.centering
+{
+	display: flex;
+	justify-content: center;
+}
+
+.hidden
+{
+	display: none;
+}
+
+/*
+ * Site styles
+ */
+
+body
+{
+	color: rgb(26, 26, 26);
+
+	font-family: "Roboto", sans-serif;
+}
+
+main
+{
+	position: relative;
+
+	width: min(1080px, 80%);
+	margin-inline: auto;
+
+	padding-top: 128px;
+	padding-bottom: 2px;
+}
+
+#title
+{
+	margin-bottom: 16px;
+}
+
+section
+{
+	margin-bottom: 64px;
+}
+
+.even-columns
+{
+	margin-bottom: 2em;
+
+	display: grid;
+	gap: 2rem;
+}
+
+@media(min-width: 720px)
+{
+	.even-columns
+	{
+		grid-auto-flow: column;
+		grid-auto-columns: 1fr;
+	}
+}
+
+.panel
+{
+	position: relative;
+
+	padding: 20px;
+	border: 3px solid rgb(51, 51, 51);
+
+	box-shadow: 10px 10px #111111C0;
+
+	background-color: rgb(238, 238, 238);
+
+	display: flex;
+	justify-content: center;
+	align-items: center;
+	flex-direction: column;
+}
+
+.panel.small
+{
+	height: 168px;
+}
+
+.panel.medium
+{
+	height: 288px;
+}
+
+.panel.large
+{
+	height: 384px;
+}
+
+.divider
+{
+	margin: 16px 0px 48px;
+
+	border-width: 2px 2px thin;
+	border-color: rgb(51, 51, 51);
+}
+
+#login-button
+{
+	width: 300px;
+	height: 100px;
+
+	background-color: #2C3C41;
+
+	border: 3px solid #111111;
+	box-shadow: 10px 10px #111111C0;
+
+	color: white;
+	display: flex;
+	justify-content: center;
+	align-items: center;
+}
+
+@media (hover: hover)
+{
+	#login-button:hover
+	{
+		cursor: pointer;
+		filter: brightness(80%);
+	}
+}
+
+#login-button:active
+{
+	transform: scale(0.95);
+}
+
+#heatmap
+{
+	background-color: white;
+}

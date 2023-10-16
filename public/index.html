@@ -11,10 +11,12 @@
 	<div id="main">
 		<canvas id="canvas"></canvas>
 		<div id="selector">
-			<img id="selector-border" src="./images/selector.png">
-			<div id="selector-pixel" class="hidden">
-				<div id="pixel-border"></div>
-				<div id="pixel-color"></div>
+			<div id="selector-container">
+				<img id="selector-border" src="./images/selector.png">
+				<div id="selector-pixel" class="hidden">
+					<div id="pixel-border"></div>
+					<div id="pixel-color"></div>
+				</div>
 			</div>
 			<div style="display: flex; justify-content: center;">
 				<div id="placer-tooltip" class="tooltip fs-s">
@@ -26,7 +28,7 @@
 
 	<div id="ui">
 		<div style="display: flex; justify-content: center;">
-			<div id="share" class="white button" onpointerup="shareUrl()">
+			<div id="share" class="white shadow button" onpointerup="shareUrl()">
 				<img src="./images/arrow.svg" width="32px" height="32px">
 			</div>
 			<div id="share-tooltip" class="tooltip fs-s">
@@ -34,11 +36,11 @@
 			</div>
 		</div>
 
-		<div id="place" class="orange button" onpointerup="openPicker()">
+		<div id="place" class="orange shadow button" onpointerup="openPicker()">
 			<div class="action fs-m"><b>Place!</b></div>
 			<div class="info fs-s">(500, 500) 1X</div>
 		</div>
-		<div id="settings" class="hidden white button">
+		<div id="settings" class="white shadow button" onpointerup="openExtra()">
 			<img src="./images/dots.svg" width="20px" height="20px">
 		</div>
 	</div>
@@ -55,11 +57,33 @@
 			</div>
 		</div>
 		<div class="container">
-			<div id="cancel" class="button" onpointerup="closePicker()">
+			<div id="cancel" class="gray shadow button" onpointerup="closePicker()">
 				<img src="./images/x.svg" width="40px" height="40px">
 			</div>
-			<div id="confirm" class="inactive orange button" onpointerup="placeColor()">
+			<div id="confirm" class="inactive orange shadow button" onpointerup="placeColor()">
 				<img src="./images/checkmark.svg" width="40px" height="40px">
+			</div>
+		</div>
+	</div>
+
+	<div id="extra-screen" class="hidden" onpointerup="closeExtra(true)">
+		<div class="white shadow modal" onpointerup="noop(event)">
+			<div id="close-extra" class="white button" onpointerup="closeExtra()">
+				<img src="./images/x.svg" width="40px" height="40px">
+			</div>
+			<div class="modal-content fs-l">
+				<div class="gray modal-option button" onpointerup="openGithub()">
+					<img src="./images/github.svg" width="30px" height="30px">
+					<b>By Mercurial</b>
+				</div>
+				<div class="gray modal-option button" onpointerup="openManechat()">
+					<img src="./images/discord.svg" width="30px" height="30px">
+					<b>Join Manechat</b>
+				</div>
+				<div class="gray modal-option button" onpointerup="openStats()">
+					<img src="./images/stats.svg" width="30px" height="30px">
+					<b>Stats</b>
+				</div>
 			</div>
 		</div>
 	</div>

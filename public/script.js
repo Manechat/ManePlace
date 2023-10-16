@@ -41,6 +41,7 @@ const pixelColor = selectorPixel.querySelector("#pixel-color");
 const shareTooltip = document.getElementById("share-tooltip");
 const placerTooltip = document.getElementById("placer-tooltip");
 const colorsContainer = document.getElementById("colors");
+const extraScreen = document.getElementById("extra-screen");
 
 
 
@@ -106,7 +107,31 @@ function reloadPage()
 
 function delayedReloadPage()
 {
-	setTimeout(reloadPage, 2000);
+	setTimeout(reloadPage, 3000);
+}
+
+let socket;
+
+async function connectSocket()
+{
+	await repaintCanvas();
+
+	socket = new WebSocket("wss://" + window.location.host);
+
+	socket.addEventListener("message", async e =>
+	{
+		const bytes = new Uint8Array( await e.data.arrayBuffer() );
+
+		const x = toUInt16(bytes[0], bytes[1]);
+		const y = toUInt16(bytes[2], bytes[3]);
+		const color = toUInt24(bytes[4], bytes[5], bytes[6]);
+
+		ctx.fillStyle = rgbIntToHex(color);
+		ctx.fillRect(x * pixelSize, y * pixelSize, pixelSize, pixelSize);
+	});
+
+	socket.addEventListener("error", reloadPage);
+	socket.addEventListener("close", connectSocket);
 }
 
 
@@ -131,30 +156,8 @@ fetch("/initialize")
 	setColors(res.settings.colors);
 	updatePlaceButton();
 })
-.then(repaintCanvas)
-.then(() =>
-{
-	const socket = new WebSocket("wss://" + window.location.host);
-
-	socket.addEventListener("message", async e =>
-	{
-		const bytes = new Uint8Array( await e.data.arrayBuffer() );
-
-		const x = toUInt16(bytes[0], bytes[1]);
-		const y = toUInt16(bytes[2], bytes[3]);
-		const color = toUInt24(bytes[4], bytes[5], bytes[6]);
-
-		ctx.fillStyle = rgbIntToHex(color);
-		ctx.fillRect(x * pixelSize, y * pixelSize, pixelSize, pixelSize);
-	});
-
-	socket.addEventListener("error", delayedReloadPage);
-	socket.addEventListener("close", delayedReloadPage);
-})
-.then(() =>
-{
-	loadingScreen.classList.add("hidden");
-});
+.then(connectSocket)
+.then(() => loadingScreen.classList.add("hidden"));
 
 async function repaintCanvas()
 {
@@ -173,6 +176,7 @@ async function repaintCanvas()
 	ctx.drawImage(await createImageBitmap(image, 0, 0, image.width, image.height), 0, 0, image.width * pixelSize, image.height * pixelSize);
 }
 
+/*
 let lastSwitchTime = 0;
 
 document.addEventListener("visibilitychange", () =>
@@ -189,6 +193,7 @@ document.addEventListener("visibilitychange", () =>
 
 	lastSwitchTime = Date.now();
 });
+*/
 
 
 
@@ -204,7 +209,16 @@ function updateBounds()
 
 updateBounds();
 
-const instance = panzoom(main, { smoothScroll: false, zoomDoubleClickSpeed: 1, minZoom: 0.5, maxZoom: 40, bounds });
+const instance = panzoom(main, { smoothScroll: false, zoomDoubleClickSpeed: 1, minZoom: 0.5, maxZoom: 40, bounds, filterKey: (e, x, y) =>
+{
+	if(x || y)
+	{
+		const scale = instance.getTransform().scale;
+		instance.moveBy(x * scale, y * scale);
+	}
+
+	return true;
+} });
 
 instance.on("panend", e =>
 {
@@ -254,7 +268,6 @@ instance.on("transform", e =>
 
 	const transform = e.getTransform();
 
-	// TODO: move the bounding logic earlier so that it's smoother
 	// use document.body.client* instead of window.inner* because it's inaccurate on android devices for some odd reason?????
 	const centerX = (document.body.clientWidth / 2.0 - transform.x) / transform.scale;
 	const centerY = (document.body.clientHeight / 2.0 - transform.y) / transform.scale;
@@ -281,8 +294,32 @@ instance.on("transform", e =>
 	placerTooltipTimer = setTimeout(showPlacerTooltip, 200);
 });
 
+let preventNextContextMenu = false;
+
 main.onmouseup = e =>
 {
+	if(e.button === 2 && picker.classList.contains("open"))
+	{
+		closePicker();
+		preventNextContextMenu = true;
+	}
+
+	if(e.button !== 0 && e.button !== 1)
+	{
+		return;
+	}
+
+	if(e.target.id === "selector-border")
+	{
+		selectTimer = setTimeout(openPicker, 10);
+		return;
+	}
+	else if(e.target?.parentNode?.id === "selector-pixel")
+	{
+		selectTimer = setTimeout(placeColor, 10);
+		return;
+	}
+
 	if(Date.now() - lastResizeTime <= 200) // prevent this from triggering in a rare scenario where the titlebar is double clicked to resize the window
 	{
 		return;
@@ -294,6 +331,15 @@ main.onmouseup = e =>
 	instance.moveBy(cx - e.x, cy - e.y, smooth = true, duration = 1300);
 
 	selectTimer = setTimeout(() => selectSound.play(), 10);
+}
+
+window.oncontextmenu = e =>
+{
+	if(preventNextContextMenu)
+	{
+		e.preventDefault();
+		preventNextContextMenu = false;
+	}
 }
 
 let lastWidth = 0;
@@ -357,6 +403,8 @@ function recenterCanvas()
 
 window.onresize = recenterCanvas;
 
+let lastSelectedColor;
+
 function openPicker()
 {
 	selectSound.play();
@@ -370,6 +418,11 @@ function openPicker()
 	if(banned)
 	{
 		return;
+	}
+
+	if(lastSelectedColor)
+	{
+		pickColor(lastSelectedColor, noSound = true);
 	}
 
 	picker.classList.add("open");
@@ -394,9 +447,10 @@ function closePicker()
 
 let selectedColor;
 
-function pickColor(e)
+function pickColor(e, noSound)
 {
 	unpickColor();
+	lastSelectedColor = e;
 	selectedColor = e;
 
 	e.classList.add("picked");
@@ -408,7 +462,10 @@ function pickColor(e)
 
 	showSelectorPixel();
 
-	pickSound.play();
+	if(!noSound)
+	{
+		pickSound.play();
+	}
 }
 
 function unpickColor()
@@ -433,6 +490,10 @@ async function placeColor()
 		return errorSound.play();
 	}
 
+	const sentX = selectX;
+	const sentY = selectY;
+	const sentColor = +selectedColor.dataset.color;
+
 	const placedRes = await fetch("/place",
 	{
 		method: "POST",
@@ -452,8 +513,10 @@ async function placeColor()
 		return errorSound.play();
 	}
 
-	picker.classList.remove("open");
+	ctx.fillStyle = rgbIntToHex(sentColor);
+	ctx.fillRect(sentX * pixelSize, sentY * pixelSize, pixelSize, pixelSize);
 
+	picker.classList.remove("open");
 	placeSound.play();
 
 	unpickColor();
@@ -484,8 +547,12 @@ function convertTimer()
 
 let cooldownInterval;
 
+const basePageTitle = document.title;
+
 function updatePlaceButton()
 {
+	document.title = basePageTitle;
+
 	if(!loggedIn)
 	{
 		placeButton.style.background = `linear-gradient(to left, #2C3C41, #2C3C41 100%, #566F74 100%, #566F74)`;
@@ -501,16 +568,19 @@ function updatePlaceButton()
 	}
 
 	const progress = 100 - cooldown / maxCooldown * 100;
+	const progressText = convertTimer();
 
-	placeText.innerHTML = "<b>Place" + (cooldown > 0 ? ` in ${convertTimer()}` : "!") + "</b>";
+	placeText.innerHTML = "<b>Place" + (cooldown > 0 ? ` in ${progressText}` : "!") + "</b>";
 
 	if(progress < 100)
 	{
 		placeButton.style.background = `linear-gradient(to left, #2C3C41, #2C3C41 ${progress}%, #566F74 ${progress}%, #566F74)`;
+		document.title += " - " + progressText;
 		return;
 	}
 
 	placeButton.style.background = null;
+	document.title += " - Ready!";
 }
 
 function startCooldown(newCooldown)
@@ -592,4 +662,81 @@ function setColors(colors)
 
 		colorsContainer.appendChild(colorButton);
 	}
+}
+
+
+
+function openExtra(noSound)
+{
+	if(!noSound)
+	{
+		clickSound.play();
+	}
+
+	extraScreen.classList.remove("hidden");
+}
+
+function closeExtra(noSound)
+{
+	if(!noSound)
+	{
+		clickSound.play();
+	}
+
+	extraScreen.classList.add("hidden");
+}
+
+function noop(e)
+{
+	e.stopPropagation();
+	// e.preventDefault();
+}
+
+document.onkeydown = (e) =>
+{
+	if(e.key === "Escape")
+	{
+		if(!extraScreen.classList.contains("hidden"))
+		{
+			closeExtra(noSound = true);
+		}
+		else if(picker.classList.contains("open"))
+		{
+			closePicker();
+		}
+	}
+	else if(e.key === "Enter")
+	{
+		if(extraScreen.classList.contains("hidden"))
+		{
+			if(picker.classList.contains("open"))
+			{
+				placeColor();
+			}
+			else
+			{
+				openPicker();
+			}
+		}
+	}
+}
+
+
+
+function openGithub()
+{
+	clickSound.play();
+	window.location.href = "https://github.com/Manechat/place.manechat.net";
+}
+
+function openManechat()
+{
+	clickSound.play();
+	window.location.href = "https://discord.gg/manechat";
+}
+
+function openStats()
+{
+	clickSound.play();
+	window.location.href = "/stats";
 }

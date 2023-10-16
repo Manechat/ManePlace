@@ -9,6 +9,7 @@
     "express-session": "^1.17.3",
     "express-ws": "^5.0.2",
     "greenlock-express": "^4.0.3",
+    "h264-mp4-encoder": "^1.0.12",
     "pngjs": "^7.0.0",
     "session-file-store": "^1.5.0",
     "smart-buffer": "^4.2.0"

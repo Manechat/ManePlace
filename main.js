@@ -91,8 +91,13 @@ async function userInfo(req, res, next)
  * ===============================
 */
 
-const canvas = new Canvas().initialize({ sizeX: 500, sizeY: 500, colors: [ "#be0039", "#ff4500", "#ffa800", "#ffd635", "#00a368", "#00cc78", "#7eed56", "#00756f", "#009eaa", "#2450a4", "#3690ea", "#51e9f4", "#493ac1", "#6a5cff", "#811e9f", "#b44ac0", "#ff3881", "#ff99aa", "#6d482f", "#9c6926", "#000000", "#898d90", "#d4d7d9", "#ffffff" ] });
-const io = new Canvas.IO(canvas, "./canvas/current.hst").read();
+const clients = new Map();
+
+const canvas = new Canvas().initialize({ sizeX: 500, sizeY: 500, colors: [ "#6d001a", "#be0039", "#ff4500", "#ffa800", "#ffd635", "#fff8b8", "#00a368", "#00cc78", "#7eed56", "#00756f", "#009eaa", "#00ccc0", "#2450a4", "#3690ea", "#51e9f4", "#493ac1", "#6a5cff", "#94b3ff", "#811e9f", "#b44ac0", "#e4abff", "#de107f", "#ff3881", "#ff99aa", "#6d482f", "#9c6926", "#ffb470", "#000000", "#515252", "#898d90", "#d4d7d9", "#ffffff" ] });
+const io = new Canvas.IO(canvas, "./canvas/current.hst");
+const stats = new Canvas.Stats(canvas, io, () => clients.size);
+io.read();
+stats.startRecording(10 * 60 * 1000 /* 10 min */, 24 * 60 * 60 * 1000 /* 24 hrs */ );
 
 // day 2 colors
 // const colors = [ "#ff4500", "#ffa800", "#ffd635", "#00a368", "#7eed56", "#2450a4", "#3690ea", "#51e9f4", "#811e9f", "#b44ac0", "#ff99aa", "#9c6926", "#000000", "#898d90", "#d4d7d9", "ffffff" ];
@@ -120,6 +125,7 @@ app.get("/auth/discord", (req, res) =>
 		scope: oauthScope,
 		redirect_uri: oauthRedirectUrl,
 		response_type: "code",
+		state: req.query.from
 	});
 
 	res.redirect(`https://discord.com/api/oauth2/authorize?${query}`);
@@ -131,9 +137,11 @@ app.get("/auth/discord/redirect", async (req, res) =>
 {
 	const code = req.query.code;
 
+	const redirectUrl = "/" + (req.query.state || "");
+
 	if (!code)
 	{
-		return res.redirect("/");
+		return res.redirect(redirectUrl);
 	}
 
 	const authRes = await fetch("https://discord.com/api/oauth2/token",
@@ -153,7 +161,7 @@ app.get("/auth/discord/redirect", async (req, res) =>
 
 	if(!authRes.ok)
 	{
-		return res.redirect("/");
+		return res.redirect(redirectUrl);
 	}
 
 	const auth = await authRes.json();
@@ -165,13 +173,13 @@ app.get("/auth/discord/redirect", async (req, res) =>
 
 	if(!userRes.ok)
 	{
-		return res.redirect("/");
+		return res.redirect(redirectUrl);
 	}
 
 	await promisify(req.session.regenerate.bind(req.session))(); // TODO: Clean old sessions associated with this user/id
 	req.session.user = await userRes.json();
 
-	res.redirect("/");
+	res.redirect(redirectUrl);
 });
 
 
@@ -233,9 +241,9 @@ app.post("/placer", async (req, res) =>
 	{
 		const member = await client.guilds.cache.get(Config.guild.id).members.fetch(pixelInfo.userId.toString());
 
-		if(member && member.nickname)
+		if(member)
 		{
-			return res.json({ username: member.nickname });
+			return res.json({ username: member.nickname ? member.nickname : member.user.globalName });
 		}
 	}
 	catch(e)
@@ -250,6 +258,24 @@ app.post("/placer", async (req, res) =>
 	}
 
 	res.json({ username: user.username });
+});
+
+
+
+/*
+ * ===============================
+*/
+
+app.get("/stats-json", ExpressCompression(), userInfo, (req, res) =>
+{
+	const statsJson = { global: Object.assign( { userCount: clients.size, pixelCount: canvas.pixelEvents.length } , stats.global ) };
+
+	if(req.member)
+	{
+		statsJson.personal = stats.personal.get(req.member.user.id);
+	}
+
+	res.json(statsJson);
 });
 
 
@@ -280,7 +306,6 @@ function isBanned(member)
 */
 
 let idCounter = 0;
-const clients = new Map();
 
 canvas.addListener("pixel", (x, y, color) =>
 {

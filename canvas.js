@@ -1,14 +1,9 @@
-const FileSystem = require("fs");
-const SmartBuffer = require("smart-buffer").SmartBuffer;
-const EventEmitter = require("events");
+import EventEmitter from "events";
+import { LazyMap } from "./util.js";
 
 
 
-/*
- * ===============================
-*/
-
-class ImageBuffer
+class RawImage
 {
 	constructor(sizeX, sizeY)
 	{
@@ -18,320 +13,172 @@ class ImageBuffer
 		this.data = Buffer.alloc(sizeX * sizeY * 4, 255);
 	}
 
-	calculateOffset(x, y)
+	getOffset(x, y)
 	{
 		return (x + y * this.sizeX) * 4;
 	}
 
 	getColor(x, y)
 	{
-		return this.data.readUintBE(this.calculateOffset(x, y), 3);
+		return this.data.readUintBE(this.getOffset(x, y), 3);
 	}
 
 	setColor(x, y, color)
 	{
-		this.data.writeUIntBE(color, this.calculateOffset(x, y), 3);
-	}
-}
-
-
-
-
-class UserDataStore
-{
-	constructor(defaultUserData)
-	{
-		this._defaultUserData = defaultUserData;
-		this._map = new Map();
+		this.data.writeUIntBE(color, this.getOffset(x, y), 3);
 	}
 
-	get(userId)
+	copy(x, y, image)
 	{
-		userId = userId.toString();
+		// area of the source image to be pasted on (intersection)
+		const sx1 = Math.max(x, 0);
+		const sy1 = Math.max(y, 0);
+		const sx2 = Math.min(x + image.sizeX, this.sizeX);
+		const sy2 = Math.min(y + image.sizeY, this.sizeY);
 
-		let userData = this._map.get(userId);
+		// area of the target image to be pasted
+		const tx1 = sx1 - x;
+		const ty1 = sy1 - y;
+		const tx2 = sx2 - x;
+		const ty2 = sy2 - y;
 
-		if(!userData)
+		// copy target line-by-line
+		for (let dy = 0; dy < ty2 - ty1; ++dy)
 		{
-			this._map.set(userId, userData = structuredClone(this._defaultUserData));
+			image.data.copy(this.data, this.getOffset(sx1, sy1 + dy), image.getOffset(tx1, ty1 + dy), image.getOffset(tx2, ty1 + dy));
 		}
-
-		return userData;
-	}
-
-	[Symbol.iterator]()
-	{
-		return this._map.entries;
 	}
 }
 
 
-const defaultCanvasSettings = {
-	sizeX: 1000,
-	sizeY: 1000,
-	colors: [ 16711680, 65280, 255 ],
-	maxCooldown: 60
-};
 
-function hexToInt(hex)
+export class ErrorCode
 {
-	if(typeof hex === "number")
-	{
-		return hex;
-	}
+	static OUT_OF_BOUNDS = 0;
+	static COLOR_NOT_FOUND = 1;
+	static ON_COOLDOWN = 2;
+	static CANVAS_CLOSED = 3;
 
-	if(hex.startsWith("#"))
-	{
-		hex = hex.slice(1);
-	}
+	static UNSUPPORTED_EXPANSION = 100;
 
-	return Number(`0x${hex}`);
+	static INVALID_COLOR = 1000;
 }
 
-const defaultCanvasUserData = { cooldown: 0 };
+export class Event
+{
+	static PLACE = 0;
+	static EXPAND = 1;
+	static COLORS = 2;
+	static COOLDOWN = 3;
+}
 
-class Canvas extends EventEmitter
+export class Canvas extends EventEmitter
 {
 	constructor()
 	{
 		super();
-		this.pixelEvents = [];
-		this.users = new UserDataStore(defaultCanvasUserData);
 
-		setInterval(this._update.bind(this), 1000);
+		this.image = new RawImage(0, 0);
+		this.colors = [];
+		this.cooldown = 0;
+
+		this.pixelMap = new LazyMap();
+		this.userMap = new LazyMap();
+
+		this.pivotX = 0;
+		this.pivotY = 0;
 	}
 
-	initialize(settings)
+	/*
+	use(...conditions)
 	{
-		this.settings = Object.assign(structuredClone(defaultCanvasSettings), settings);
-		this.settings.colors = this.settings.colors.map(hexToInt);
-
-		this.pixels = new ImageBuffer(this.settings.sizeX, this.settings.sizeY);
-		this.info = new Array(this.settings.sizeX).fill(null).map(() => new Array(this.settings.sizeY).fill(null));
-		
-		return this;
-	}
-
-	_update()
-	{
-		for(const [ userId, data ] of this.users._map)
+		for (const condition of conditions)
 		{
-			if(data.cooldown > 0)
+			for (const key in condition)
 			{
-				--data.cooldown;
+				const func = this[key];
+				const conditionFunc = condition[key];
+
+				if (typeof func === "function" && typeof conditionFunc === "function")
+				{
+					this[key] = (...args) =>
+					{
+						const result = conditionFunc(...args);
+						if (result) return result;
+						return func(...args);
+					};
+				}
 			}
-		}
-	}
-
-	_setPixel(x, y, color, userId, timestamp)
-	{
-		this.pixels.setColor(x, y, color);
-		this.info[x][y] = { userId, timestamp };
-		this.pixelEvents.push({ x, y, color, userId, timestamp });
-	}
-
-	isInBounds(x, y)
-	{
-		return parseInt(x) == x && parseInt(y) == y && x >= 0 && x < this.settings.sizeX && y >= 0 && y < this.settings.sizeY;
-	}
-
-	place(x, y, color, userId)
-	{
-		if(!this.isInBounds(x, y))
-		{
-			return false;
-		}
-
-		if(!this.settings.colors.includes(+color))
-		{
-			return false;
-		}
-
-		if(this.users.get(userId).cooldown > 0)
-		{
-			return false;
-		}
-
-		const timestamp = Date.now();
-		this._setPixel(x, y, color, userId, timestamp);
-		this.emit("pixel", x, y, color, userId, timestamp);
-
-		this.users.get(userId).cooldown = this.settings.maxCooldown;
-
-		return true;
-	}
-}
-
-
-
-Canvas.IO = class extends EventEmitter
-{
-	constructor(canvas, path)
-	{
-		super();
-		this._canvas = canvas;
-		this._path = path;
-
-		if(!FileSystem.existsSync(path))
-		{
-			FileSystem.writeFileSync(path, "");
-		}
-
-		this._stream = FileSystem.createWriteStream(path, { flags: "a" });
-
-		canvas.addListener("pixel", this.writePixel.bind(this));
-	}
-
-	read()
-	{
-		const buf = SmartBuffer.fromBuffer(FileSystem.readFileSync(this._path));
-
-		while(buf.remaining() > 0)
-		{
-			const x = buf.readUInt16BE();
-			const y = buf.readUInt16BE();
-			
-			const color = buf.readBuffer(3).readUintBE(0, 3);
-
-			const userId = buf.readBigUInt64BE().toString();
-			const timestamp = Number(buf.readBigUInt64BE());
-
-			this._canvas._setPixel(x, y, color, userId, timestamp);
-
-			this.emit("read", x, y, color, userId, timestamp);
 		}
 
 		return this;
 	}
+	*/
 
-	writePixel(x, y, color, userId, timestamp)
+	getPlaceTimestampsFor(userId)
 	{
-		const buf = new SmartBuffer(); // TODO: re-use buffer
-
-		buf.writeUInt16BE(x);
-		buf.writeUInt16BE(y);
-		const colorBuf = Buffer.alloc(3);
-		colorBuf.writeUIntBE(color, 0, 3);
-		buf.writeBuffer(colorBuf);
-		buf.writeBigUInt64BE(BigInt(userId));
-		buf.writeBigUInt64BE(BigInt(timestamp));
-
-		this._stream.write(buf.toBuffer());
+		return this.userMap.get(userId)?.placeTimestamps;
 	}
 
-	serializePixelWithoutTheOtherStuff(x, y, color)
+	getPlacer(x, y)
 	{
-		const buf = new SmartBuffer();
-
-		buf.writeUInt16BE(x);
-		buf.writeUInt16BE(y);
-		const colorBuf = Buffer.alloc(3);
-		colorBuf.writeUIntBE(color, 0, 3);
-		buf.writeBuffer(colorBuf);
-
-		return buf.toBuffer();
-	}
-}
-
-
-
-
-const defaultUserStats = { pixelEvents: [] };
-
-Canvas.Stats = class
-{
-	constructor(canvas, io, getConnectedUserCount)
-	{
-		this.canvas = canvas;
-		this.getConnectedUserCount = getConnectedUserCount;
-
-		this.global = {
-			uniqueUserCount: 0,
-			colorCounts: {},
-			//
-			userCountOverTime: {},
-			pixelCountOverTime: {}
-		};
-
-		this.personal = new UserDataStore(defaultUserStats);
-		
-		//
-
-		canvas.addListener("pixel", this._updateRealTime.bind(this));
-		io.addListener("read", this._updateRealTime.bind(this));
-
-		// TODO: Yucky!
-		if(FileSystem.existsSync("./canvas/userCountOverTime.json"))
-		{
-			this.global.userCountOverTime = JSON.parse(FileSystem.readFileSync("./canvas/userCountOverTime.json", { encoding: "utf-8" }));
-		}
+		return this.pixelMap.get(x)?.get(y)?.userId;
 	}
 
-	startRecording(intervalMs, durationMs)
+	place(x, y, color, userId, timestamp = Date.now()) // TODO: Bypass checks during read?
 	{
-		this._recordingIntervalMs = intervalMs;
-		this._recordingDurationMs = durationMs;
+		const absoluteX = x + this.pivotX;
+		const absoluteY = y + this.pivotY;
 
-		Utils.startInterval(this._recordingIntervalMs, this._updateAtInterval.bind(this));
+		if (absoluteX < 0 || absoluteX > this.image.sizeX || absoluteY < 0 || absoluteY > this.image.sizeY) return { error: ErrorCode.OUT_OF_BOUNDS };
+		if (!this.colors.includes(color)) return { error: ErrorCode.COLOR_NOT_FOUND };
+		if (this.cooldown < 0) return { error: ErrorCode.CANVAS_CLOSED };
+		if (this.getPlaceTimestampsFor(userId)?.next > timestamp) return { error: ErrorCode.ON_COOLDOWN };
+
+		this.image.setColor(absoluteX, absoluteY, color);
+		this.pixelMap.get(x, () => new LazyMap()).get(y, () => ( {} )).userId = userId;
+		const placeTimestamps = this.userMap.get(userId, () => ( {} )).placeTimestamps ??= {};
+		placeTimestamps.last = timestamp;
+		placeTimestamps.next = timestamp + this.cooldown;
+
+		this.emit("dispatch", { id: Event.PLACE, x, y, color, userId, timestamp });
+
+		return { placeTimestamp: placeTimestamps.last, nextPlaceTimestamp: placeTimestamps.next };
 	}
 
-	_updateRealTime(x, y, color, userId, timestamp)
+	expand(nx, ny, px, py, userId, timestamp = Date.now())
 	{
-		this.global.colorCounts[color] ??= 0;
-		this.global.colorCounts[color]++;
+		if (nx < 0 || ny < 0 || px < 0 || py < 0) return { error: ErrorCode.UNSUPPORTED_EXPANSION };
 
-		this.personal.get(userId).pixelEvents.push({ x, y, color, userId, timestamp });
+		this.pivotX += nx;
+		this.pivotY += ny;
+
+		const oldImage = this.image;
+		this.image = new RawImage(oldImage.sizeX + nx + px, oldImage.sizeY + ny + py);
+		this.image.copy(nx, ny, oldImage);
+
+		this.emit("dispatch", { id: Event.EXPAND, nx, ny, px, py, userId, timestamp });
+
+		return {};
 	}
 
-	_updateAtInterval()
+	setColors(colors, userId, timestamp = Date.now())
 	{
-		console.log("Updated stats");
+		if (colors.some(c => c < 0 || c > 16777215)) return { error: ErrorCode.INVALID_COLOR };
 
-		const currentTimeMs = Date.now();
-		const startTimeMs = currentTimeMs - this._recordingDurationMs;
-		const intervalTimeMs = this._recordingIntervalMs;
+		this.colors = colors;
 
+		this.emit("dispatch", { id: Event.COLORS, colors, userId, timestamp });
 
+		return {};
+	}
 
-		this.global.uniqueUserCount = new Set(this.canvas.pixelEvents.map(pixelEvent => pixelEvent.userId)).size; // TODO: update in real time?
+	setCooldown(cooldown, userId, timestamp = Date.now())
+	{
+		this.cooldown = cooldown;
 
+		this.emit("dispatch", { id: Event.COOLDOWN, cooldown, userId, timestamp });
 
-
-		for(const timestamp in this.global.userCountOverTime)
-		{
-			if(timestamp < startTimeMs)
-			{
-				delete this.global.userCountOverTime[timestamp];
-			}
-		}
-
-		this.global.userCountOverTime[currentTimeMs] = this.getConnectedUserCount();
-
-		// TODO: Yucky!
-		FileSystem.writeFileSync("./canvas/userCountOverTime.json", JSON.stringify(this.global.userCountOverTime));
-
-
-
-		// TODO This will break if there are periods of 0 placement
-		// TOOD So we need to fill out those intervals manually, make sure they are present
-		this.global.pixelCountOverTime = this.canvas.pixelEvents.groupBy(pixelEvent =>
-		{
-			const intervalStartTimeMs = Math.floor( (pixelEvent.timestamp - startTimeMs) / intervalTimeMs ) * intervalTimeMs;
-	
-			return pixelEvent.timestamp < startTimeMs ? undefined : intervalStartTimeMs + startTimeMs;
-		} );
-
-		for(const timestamp in this.global.pixelCountOverTime)
-		{
-			this.global.pixelCountOverTime[timestamp] = this.global.pixelCountOverTime[timestamp].length;
-		}
+		return {};
 	}
 }
-
-
-
-/*
- * ===============================
-*/
-
-module.exports = Canvas;

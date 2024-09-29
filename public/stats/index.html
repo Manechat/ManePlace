@@ -1,11 +1,21 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-	<meta charset="UTF-8">
-	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
-	<link rel="stylesheet" href="styles.css">
+	<meta charset="UTF-8" name="viewport" content="width=device-width, initial-scale=1.0">
+
+	<link rel="preconnect" href="https://fonts.googleapis.com">
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link href="https://fonts.googleapis.com/css2?family=Figtree:ital,wght@0,300..900;1,300..900&display=swap" rel="stylesheet">
+
+	<link rel="stylesheet" href="/stats/styles.css">
+
 	<title>ManePlace Stats</title>
+
+	<script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+	<script defer src="https://cdn.jsdelivr.net/npm/luxon@3.4.3/build/global/luxon.min.js"></script>
+	<script defer src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon@1.3.1/dist/chartjs-adapter-luxon.umd.min.js"></script>
+	<script defer src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.0/dist/confetti.browser.min.js"></script>
+	<script defer src="/stats/script.js" type="module"></script>
 </head>
 <body>
 	<main>
@@ -22,12 +32,16 @@
 					<p id="pixel-count" class="fs-l b">0</p>
 				</div>
 				<div class="small panel">
-					<div class="fs-m b">In Days</div>
-					<p id="days-spent" class="fs-l b">0</p>
+					<div class="fs-m b">Users Online</div>
+					<p id="user-count" class="fs-l b">0</p>
 				</div>
 				<div class="small panel">
-					<div class="fs-m b">In Hours</div>
-					<p id="hours-spent" class="fs-l b">0</p>
+					<div class="fs-m b">Unique Users</div>
+					<p id="unique-user-count" class="fs-l b">0</p>
+				</div>
+				<div class="small panel">
+					<div class="fs-m b">Most At Once</div>
+					<p id="max-concurrent-user-count" class="fs-l b">0</p>
 				</div>
 			</div>
 
@@ -35,17 +49,6 @@
 			<div class="even-columns">
 				<div class="medium panel">
 					<canvas id="pixels-chart"></canvas>
-				</div>
-			</div>
-
-			<div class="even-columns">
-				<div class="small panel">
-					<div class="fs-m b">Unique Users</div>
-					<p id="unique-user-count" class="fs-l b">0</p>
-				</div>
-				<div class="small panel">
-					<div class="fs-m b">Users Online</div>
-					<p id="user-count" class="fs-l b">0</p>
 				</div>
 			</div>
 
@@ -68,7 +71,10 @@
 					<div class="fs-m b">Best Pony</div>
 					<p id="user-count" class="fs-l b" style="color: #6CAFD8;">Misty</p>
 				</div>
-				<div></div>
+				<div class="small panel">
+					<div class="fs-m b">Creator</div>
+					<p id="user-count" class="fs-l b">MercurialPony</p>
+				</div>
 			</div>
 
 		</section>
@@ -88,8 +94,8 @@
 
 				<div class="even-columns">
 					<div class="small panel">
-						<div class="fs-m b">Hours Wasted</div>
-						<p id="hours-wasted" class="fs-l b">0</p>
+						<div class="fs-m b">Your pixels</div>
+						<p id="your-pixels" class="fs-l b">0</p>
 					</div>
 				</div>
 
@@ -117,11 +123,4 @@
 
 		</section>
 	</main>
-
-	<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-	<script src="https://cdn.jsdelivr.net/npm/luxon@3.4.3/build/global/luxon.min.js"></script>
-	<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon@1.3.1/dist/chartjs-adapter-luxon.umd.min.js"></script>
-	<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.0/dist/confetti.browser.min.js"></script>
-	<script src="https://cdn.jsdelivr.net/npm/howler@2.2.3/dist/howler.min.js"></script>
-	<script src="./script.js"></script>
 </body>

@@ -1,0 +1,11 @@
+{
+	"guildId": "",
+	"guildName": "",
+	"guildInvite": "",
+	"bannedRoles": [],
+	"adminRoles": [],
+	"pixelCountInterval": 0,
+	"pixelCountWindow": 0,
+	"userCountInterval": 0,
+	"userCountWindow": 0
+}

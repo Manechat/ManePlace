@@ -1,350 +1,291 @@
-// Express
-const Express = require("express");
-const ExpressSession = require("express-session");
-const ExpressCompression = require("compression");
-const SessionFileStore = require("session-file-store")(ExpressSession);
-
-// Discord
-const { Client, Events, GatewayIntentBits } = require("discord.js");
-
-// Utils
-const Path = require("path");
-const QueryString = require("querystring");
-const promisify = require("util").promisify;
-
-// Our stuff
-const Canvas = require("./canvas");
-
-// Configs
-const Config = require("./config.json");
-require("dotenv").config();
+import Polka from "polka";
+import Sirv from "sirv";
+import Compress from "@polka/compression";
+import { helpers, json, session } from "./middleware.js";
+import { Canvas } from "./canvas.js";
+import * as IO from "./canvas.io.js";
+import Path from "path";
+import FileSystem from "fs/promises";
+import Query from "querystring";
+import * as Discord from "./discord.api.js";
+import { intersects } from "./util.js";
+import ChannelTracker from "./channel.tracker.js";
+import Statistics from "./canvas.stats.js";
 
 
 
-/* TODO
- * - Auto update the page like vite on any changes
- * - Sync stuff like cooldown and ban
- * - Polling system where the client polls new pixels every few seconds
- * - Log out
- * - Automatic session expiry (though ttl already does that so ???)
- * - Move more stuff to config like redirect url, etc
- */
+// TODO: Add /api/... path to all endpoints (Polka is dogshit and wouldn't allow me to mount middleware like that)
 
-const client = new Client({ intents: [ GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers ] });
+// ---------------- Discord ----------------
 
-client.login(process.env.BOT_TOKEN);
+const DISCORD = new Discord.Client(process.env.DISCORD_TOKEN, Discord.Intent.GUILDS | Discord.Intent.GUILD_MEMBERS);
 
-client.once(Events.ClientReady, c =>
+DISCORD._gatewayClient.on("close", (c, r) => console.log(new Date().toLocaleString(), c, r));
+DISCORD._gatewayClient.on("error", e => console.log(new Date().toLocaleString(), e));
+
+await DISCORD.login().then(u => console.log(`Logged in as ${u.username}`));
+
+
+
+class UserStatus
 {
-	console.log("Ready! Logged in as", c.user.tag);
-});
+	static LOGGED_OUT = 0;
+	static NOT_IN_SERVER = 1;
+	static BANNED = 2;
+	static LOGGED_IN = 10;
+	static ADMIN = 11;
+}
 
-/*
- * ===============================
-*/
-
-const app = Express();
-// const port = 80;
-
-
-
-/*
- * ===============================
-*/
-
-app.use(Express.static(Path.join(__dirname, "public")));
-app.use(ExpressSession({ store: new SessionFileStore(
+async function getUserStatus(userId) // TODO: middleware?
 {
-	path: "./canvas/sessions",
-	ttl: 7 * 24 * 60 * 60,
-	retries: 0,
-	encoder: data => JSON.stringify(data, null, "\t") }),
-	secret: process.env.SESSION_SECRET,
-	saveUninitialized: false,
-	resave: false
-}));
-app.use(Express.json());
+	if (!userId) return UserStatus.LOGGED_OUT;
 
-async function userInfo(req, res, next)
-{
-	if(!req.session?.user)
-	{
-		return next();
-	}
+	const member = await DISCORD.getGuildMember(CONFIG.guildId, userId);
 
-	req.user = req.session.user;
-
-	try
-	{
-		req.member = await client.guilds.cache.get(Config.guild.id).members.fetch(req.session.user.id);
-	}
-	catch(e)
-	{
-	}
-
-	next();
+	if (!member) return UserStatus.NOT_IN_SERVER;
+	else if (intersects(member.roles, CONFIG.adminRoles)) return UserStatus.ADMIN;
+	else if (intersects(member.roles, CONFIG.bannedRoles)) return UserStatus.BANNED;
+	return UserStatus.LOGGED_IN;
 }
 
 
 
-/*
- * ===============================
-*/
+// ---------------- Canvas ----------------
 
-const clients = new Map();
+const CHANNELS = new ChannelTracker();
 
-const canvas = new Canvas().initialize({ sizeX: 500, sizeY: 500, colors: [ "#6d001a", "#be0039", "#ff4500", "#ffa800", "#ffd635", "#fff8b8", "#00a368", "#00cc78", "#7eed56", "#00756f", "#009eaa", "#00ccc0", "#2450a4", "#3690ea", "#51e9f4", "#493ac1", "#6a5cff", "#94b3ff", "#811e9f", "#b44ac0", "#e4abff", "#de107f", "#ff3881", "#ff99aa", "#6d482f", "#9c6926", "#ffb470", "#000000", "#515252", "#898d90", "#d4d7d9", "#ffffff" ] });
-const io = new Canvas.IO(canvas, "./canvas/current.hst");
-const stats = new Canvas.Stats(canvas, io, () => clients.size);
-io.read();
-stats.startRecording(10 * 60 * 1000 /* 10 min */, 24 * 60 * 60 * 1000 /* 24 hrs */ );
+const CONFIG = await FileSystem.readFile(Path.join(import.meta.dirname, "data", "config.json"))
+	.then(s => JSON.parse(s))
+	.catch(() => ( {} ));
 
-// day 2 colors
-// const colors = [ "#ff4500", "#ffa800", "#ffd635", "#00a368", "#7eed56", "#2450a4", "#3690ea", "#51e9f4", "#811e9f", "#b44ac0", "#ff99aa", "#9c6926", "#000000", "#898d90", "#d4d7d9", "ffffff" ];
+const CANVAS = new Canvas()
+const STATS = new Statistics(
+	CONFIG.pixelCountInterval || 10 * 60 * 1000,
+	CONFIG.pixelCountWindow || 24 * 60 * 60 * 1000,
+	CONFIG.userCountInterval || 10 * 60 * 1000,
+	CONFIG.userCountWindow || 24 * 60 * 60 * 1000
+).listen(CANVAS, CHANNELS);
 
-// day 3 colors
-// const colors = [ "#be0039", "#ff4500", "#ffa800", "#ffd635", "#00a368", "#00cc78", "#7eed56", "#00756f", "#009eaa", "#2450a4", "#3690ea", "#51e9f4", "#493ac1", "#6a5cff", "#811e9f", "#b44ac0", "#ff3881", "#ff99aa", "#6d482f", "#9c6926", "#000000", "#898d90", "#d4d7d9", "#ffffff", ];
+const STATS_PATH = Path.join(import.meta.dirname, "data", "stats.json");
+await IO.readStats(STATS, STATS_PATH);
 
-// day 4 colors
-// const colors = [ "#6d001a", "#be0039", "#ff4500", "#ffa800", "#ffd635", "#fff8b8", "#00a368", "#00cc78", "#7eed56", "#00756f", "#009eaa", "#00ccc0", "#2450a4", "#3690ea", "#51e9f4", "#493ac1", "#6a5cff", "#94b3ff", "#811e9f", "#b44ac0", "#e4abff", "#de107f", "#ff3881", "#ff99aa", "#6d482f", "#9c6926", "#ffb470", "#000000", "#515252", "#898d90", "#d4d7d9", "#ffffff", ];
+const EVENTS_PATH = Path.join(import.meta.dirname, "data", "events.bin");
+await IO.readEvents(CANVAS, EVENTS_PATH);
+await IO.startWritingEvents(CANVAS, EVENTS_PATH);
 
-/*
- * ===============================
-*/
-
-const oauthRedirectUrl = "https://place.manechat.net/auth/discord/redirect"
-const oauthScope = "identify";
+IO.gracefulShutdown( () => IO.writeStats(STATS, STATS_PATH) );
 
 
 
-app.get("/auth/discord", (req, res) =>
+// ---------------- Server ----------------
+
+const SERVER = Polka();
+SERVER.use(Sirv(Path.join(import.meta.dirname, "public")), helpers, session({ secure: false }));
+
+
+
+// ---------------- Auth ----------------
+
+SERVER.get("/login", (req, res) =>
 {
-	const query = QueryString.encode(
-	{
-		client_id: process.env.CLIENT_ID,
-		scope: oauthScope,
-		redirect_uri: oauthRedirectUrl,
+	const query = Query.encode({
+		client_id: process.env.DISCORD_CLIENT_ID,
 		response_type: "code",
-		state: req.query.from
+		redirect_uri: `http://${req.headers.host}/login/redirect`,
+		scope: "identify",
+		state: req.query.from // So we can redirect back to stats
 	});
 
-	res.redirect(`https://discord.com/api/oauth2/authorize?${query}`);
+	res.redirect(`https://discord.com/oauth2/authorize?${ query }`);
 });
 
-
-
-app.get("/auth/discord/redirect", async (req, res) =>
+SERVER.get("/login/redirect", async (req, res) =>
 {
 	const code = req.query.code;
+	const redirect = `/${ req.query.state || "" }`;
 
-	const redirectUrl = "/" + (req.query.state || "");
+	if (!code) return res.redirect(redirect);
 
-	if (!code)
+	const query = {
+		client_id: process.env.DISCORD_CLIENT_ID,
+		client_secret: process.env.DISCORD_CLIENT_SECRET,
+		grant_type: "authorization_code",
+		redirect_uri: `http://${req.headers.host}/login/redirect`,
+		code,
+	};
+
+	const exchange = await fetch("https://discord.com/api/oauth2/token", { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: Query.encode(query) })
+		.then(r => r.json())
+		.catch(() => null);
+
+	if (exchange?.token_type && exchange?.access_token)
 	{
-		return res.redirect(redirectUrl);
+		const user = await fetch("https://discord.com/api/users/@me", { headers: { "Authorization": `${exchange.token_type} ${exchange.access_token}` } })
+			.then(r => r.json())
+			.catch(() => null);
+
+		if (user) res.createSession({ userId: user.id });
 	}
 
-	const authRes = await fetch("https://discord.com/api/oauth2/token",
-	{
-		method: "POST",
-		headers: { "Content-Type": "application/x-www-form-urlencoded" },
-		body: new URLSearchParams(
-		{
-			client_id: process.env.CLIENT_ID,
-			client_secret: process.env.CLIENT_SECRET,
-			grant_type: "authorization_code",
-			scope: oauthScope,
-			redirect_uri: oauthRedirectUrl,
-			code
-		})
-	});
+	res.redirect(redirect);
+});
 
-	if(!authRes.ok)
-	{
-		return res.redirect(redirectUrl);
-	}
+SERVER.delete("/logout", (req, res) =>
+{
+	if (!req?.session?.userId) return res.end("Already logged out");
 
-	const auth = await authRes.json();
+	res.deleteSession(req.session.sessionId);
 
-	const userRes = await fetch("https://discord.com/api/users/@me",
-	{
-		headers: { Authorization: `${auth.token_type} ${auth.access_token}` }
-	});
-
-	if(!userRes.ok)
-	{
-		return res.redirect(redirectUrl);
-	}
-
-	await promisify(req.session.regenerate.bind(req.session))(); // TODO: Clean old sessions associated with this user/id
-	req.session.user = await userRes.json();
-
-	res.redirect(redirectUrl);
+	res.end("Logged out");
 });
 
 
 
-app.get("/initialize", userInfo, async (req, res) =>
-{
-	if(!req.user)
-	{
-		return res.json({ loggedIn: false, banned: false, cooldown: 0, settings: canvas.settings });
-	}
+// ---------------- Get canvas ----------------
 
-	res.json({ loggedIn: true, banned: isBanned(req.member), cooldown: canvas.users.get(req.user.id).cooldown, settings: canvas.settings });
+SERVER.use("/canvas", Compress({ level: 4 }));
+SERVER.get("/canvas", (_, res) =>
+{
+	res.end(CANVAS.image.data);
 });
 
 
 
-app.get("/canvas", ExpressCompression(), (req, res) =>
+// ---------------- Get canvas state ----------------
+
+SERVER.get("/canvas/state", async (req, res) =>
 {
-	res.contentType("application/octet-stream");
-	res.send(canvas.pixels.data);
-});
-
-
-
-app.post("/place", userInfo, async (req, res) =>
-{
-	if(!req.member)
-	{
-		return res.status(401).send();
-	}
-
-	if(isBanned(req.member))
-	{
-		return res.status(403).send();
-	}
-
-	const placed = canvas.place(+req.body.x, +req.body.y, +req.body.color, req.member.user.id);
-
-	res.send({ placed });
-});
-
-
-
-app.post("/placer", async (req, res) =>
-{
-	if(!canvas.isInBounds(+req.body.x, +req.body.y))
-	{
-		return res.json({ username: "" });
-	}
-
-	const pixelInfo = canvas.info[+req.body.x][+req.body.y];
-
-	if(!pixelInfo)
-	{
-		return res.json({ username: "" });
-	}
-
-	try
-	{
-		const member = await client.guilds.cache.get(Config.guild.id).members.fetch(pixelInfo.userId.toString());
-
-		if(member)
-		{
-			return res.json({ username: member.nickname ? member.nickname : member.user.globalName });
-		}
-	}
-	catch(e)
-	{
-	}
-
-	const user = await client.users.fetch(pixelInfo.userId.toString());
-
-	if(!user)
-	{
-		return res.json({ username: "" });
-	}
-
-	res.json({ username: user.username });
-});
-
-
-
-/*
- * ===============================
-*/
-
-app.get("/stats-json", ExpressCompression(), userInfo, (req, res) =>
-{
-	const statsJson = { global: Object.assign( { userCount: clients.size, pixelCount: canvas.pixelEvents.length } , stats.global ) };
-
-	if(req.member)
-	{
-		statsJson.personal = stats.personal.get(req.member.user.id);
-	}
-
-	res.json(statsJson);
-});
-
-
-
-/*
- * ===============================
-*/
-
-function isBanned(member)
-{
-	if(!member)
-	{
-		return true;
-	}
-
-	if(Config.guild.moderatorRoles.some(roleId => member.roles.cache.has(roleId)))
-	{
-		return false;
-	}
-
-	return member.communication_disabled_until || Config.guild.bannedRoles.some(roleId => member.roles.cache.has(roleId));
-}
-
-
-
-/*
- * ===============================
-*/
-
-let idCounter = 0;
-
-canvas.addListener("pixel", (x, y, color) =>
-{
-	console.log("Pixel sent to " + clients.size + " - " + new Date().toString());
-	const buf = io.serializePixelWithoutTheOtherStuff(x, y, color);
-	for(const socket of clients.values())
-	{
-		socket.send(buf);
-	}
-});
-
-app.setUpSockets = () => // TODO: THis is really ugly because of Greenlock
-{
-
-app.ws("/", ws =>
-{
-	const clientId = idCounter++;
-
-	clients.set(clientId, ws);
-
-	ws.on("close", () =>
-	{
-		clients.delete(clientId);
+	const placeTimestamps = CANVAS.getPlaceTimestampsFor(req.session?.userId);
+	res.json({
+		sizeX: CANVAS.image.sizeX,
+		sizeY: CANVAS.image.sizeY,
+		pivotX: CANVAS.pivotX,
+		pivotY: CANVAS.pivotY,
+		colors: CANVAS.colors,
+		cooldown: CANVAS.cooldown,
+		userStatus: await getUserStatus(req.session?.userId),
+		placeTimestamp: placeTimestamps?.last ?? 0,
+		nextPlaceTimestamp: placeTimestamps?.next ?? 0,
+		guildName: CONFIG.guildName, // TODO: Automatically get name and invite/vanity link?
+		guildInvite: CONFIG.guildInvite,
 	});
 });
 
-}
 
 
+// ---------------- Place ----------------
 
-/*
- * ===============================
-*/
-
-/*
-app.listen(port, () =>
+SERVER.use("/place", json);
+SERVER.post("/place", async (req, res) =>
 {
-	console.log(`Example app listening on port ${port}`);
-});
-*/
+	if (!Number.isInteger(req.body.x) || !Number.isInteger(req.body.y) || !Number.isInteger(req.body.color)) return res.status(400).end();
+	if (!req.session?.userId) return res.status(401).end();
+	if (await getUserStatus(req.session.userId) < UserStatus.LOGGED_IN) return res.status(403).end();
 
-module.exports = app;
+	res.json(CANVAS.place(req.body.x, req.body.y, req.body.color, req.session.userId));
+});
+
+
+
+// ---------------- Get placer ----------------
+
+SERVER.use("/placer", json);
+SERVER.post("/placer", async (req, res) =>
+{
+	if (!Number.isInteger(req.body.x) || !Number.isInteger(req.body.y)) return res.status(400).end();
+
+	const userId = CANVAS.getPlacer(req.body.x, req.body.y);
+	const member = await DISCORD.getGuildMember(CONFIG.guildId, userId);
+
+	res.json({ placer: member?.nick || member?.user?.global_name || member?.user?.username }); // TODO: Name for users not in the server
+});
+
+
+
+// ---------------- Events ----------------
+
+SERVER.get("/events", (req, res) =>
+{
+	res.writeHead(200, {
+		"Content-Type": "text/event-stream",
+		"Connection": "keep-alive",
+		"Cache-Control": "no-cache"
+	});
+
+	CHANNELS.open(res);
+	req.on("close", () => CHANNELS.close(res));
+});
+
+CANVAS.on("dispatch", event =>
+{
+	const data = Object.assign({}, event);
+	delete data.userId,
+	delete data.timestamp;
+	CHANNELS.sendAll("dispatch", data);
+});
+
+
+
+// ---------------- Mod tools ----------------
+
+// TODO: Change paths to /tools/etc or similar
+SERVER.use("/expand", json);
+SERVER.post("/expand", async (req, res) =>
+{
+	if (!Number.isInteger(req.body.nx) || !Number.isInteger(req.body.ny) || !Number.isInteger(req.body.px) || !Number.isInteger(req.body.py)) return res.status(400).end();
+	if (!req.session?.userId) return res.status(401).end();
+	if (await getUserStatus(req.session.userId) !== UserStatus.ADMIN) return res.status(403).end();
+
+	res.json(CANVAS.expand(req.body.nx, req.body.ny, req.body.px, req.body.py, req.session.userId));
+});
+
+SERVER.use("/colors", json);
+SERVER.post("/colors", async (req, res) =>
+{
+	if (!Array.isArray(req.body.colors) || req.body.colors.some(c => !Number.isInteger(c))) return res.status(400).end();
+	if (!req.session?.userId) return res.status(401).end();
+	if (await getUserStatus(req.session.userId) !== UserStatus.ADMIN) return res.status(403).end();
+
+	res.json(CANVAS.setColors(req.body.colors, req.session.userId));
+});
+
+SERVER.use("/cooldown", json);
+SERVER.post("/cooldown", async (req, res) =>
+{
+	if (!Number.isInteger(req.body.cooldown)) return res.status(400).end();
+	if (!req.session?.userId) return res.status(401).end();
+	if (await getUserStatus(req.session.userId) !== UserStatus.ADMIN) return res.status(403).end();
+
+	res.json(CANVAS.setCooldown(req.body.cooldown, req.session.userId));
+});
+
+
+
+// ---------------- Stats ----------------
+
+SERVER.use("/statistics", Compress({ level: 4 }));
+SERVER.get("/statistics", (req, res) =>
+{
+	const stats = {};
+
+	stats.global = {
+		pixelCount: STATS.pixelCount,
+		pixelCountByColor: STATS.pixelCountByColor,
+		pixelCountOverTime: STATS.pixelCountsOverTime,
+		pixelCountInterval: STATS.pixelCountInterval,
+		userCount: CHANNELS.getChannelCount(),
+		uniqueUserCount: STATS.personal.size,
+		userCountOverTime: STATS.userCountOverTime,
+		mostConcurrentUsers: STATS.mostConcurrentUsers,
+	};
+
+	if (req.session?.userId) stats.personal = STATS.getPersonal(req.session.userId);
+
+	res.json(stats);
+});
+
+
+
+// ---------------- Start ----------------
+
+SERVER.listen(5000, () => console.log(`Server started on port 5000`));

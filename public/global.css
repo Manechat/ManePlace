@@ -1,0 +1,132 @@
+/*
+ * General styles
+ */
+
+.fs-s
+{
+	font-size: 13px;
+}
+
+.fs-m
+{
+	font-size: 16px;
+}
+
+.fs-l
+{
+	font-size: 18px;
+}
+
+.fs-xl
+{
+	font-size: 24px;
+}
+
+.fw-l
+{
+	font-weight: 100;
+}
+
+.fw-b
+{
+	font-weight: 700;
+}
+
+
+
+/*
+ * Site global styles
+ */
+
+.white
+{
+	background-color: white;
+}
+
+.gray
+{
+	background-color: #E9EDEE;
+}
+
+.orange
+{
+	color: white;
+	background-color: #FF4500;
+}
+
+.orange.inactive
+{
+	background-color: #2C3C41;
+}
+
+.shadow
+{
+	box-shadow: 10px 10px #111111C0;
+}
+
+.center,
+.button
+{
+	display: flex;
+	justify-content: center;
+	align-items: center;
+}
+
+.border,
+.button
+{
+	border: 3px solid #111111;
+}
+
+.button
+{
+	pointer-events: all;
+	user-select: none;
+}
+
+.faded
+{
+	opacity: 0%;
+}
+
+.hidden
+{
+	display: none;
+}
+
+@media (hover: hover)
+{
+	.button:hover
+	{
+		cursor: pointer;
+		filter: brightness(80%);
+	}
+}
+
+.button:active
+{
+	transform: scale(0.95);
+}
+
+img
+{
+	pointer-events: none;
+}
+
+a
+{
+	color: inherit;
+	text-decoration: inherit;
+}
+
+dialog
+{
+	margin: auto;
+	
+	overflow: inherit;
+}
+
+dialog::backdrop
+{
+	background-color: rgba(0, 0, 0, 0.5);
+}

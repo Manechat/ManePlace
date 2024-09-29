@@ -1,100 +1,143 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-	<meta charset="UTF-8">
-	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;700&display=swap" rel="stylesheet">
+	<meta charset="utf-8" name="viewport" content="user-scalable=no, width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0" />
+
+	<link rel="preconnect" href="https://fonts.googleapis.com">
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link href="https://fonts.googleapis.com/css2?family=Figtree:ital,wght@0,300..900;1,300..900&display=swap" rel="stylesheet">
+
+	<link rel="stylesheet" href="reset.css">
+	<link rel="stylesheet" href="global.css">
 	<link rel="stylesheet" href="styles.css">
+
 	<title>ManePlace</title>
+
+	<script defer src="elements/color-picker.js" type="module"></script>
+	<script defer src="elements/x-tooltip.js" type="module"></script>
+	<script defer src="script.js" type="module"></script>
 </head>
-<body>
-	<div id="main">
-		<canvas id="canvas"></canvas>
-		<div id="selector">
-			<div id="selector-container">
-				<img id="selector-border" src="./images/selector.png">
-				<div id="selector-pixel" class="hidden">
-					<div id="pixel-border"></div>
-					<div id="pixel-color"></div>
-				</div>
-			</div>
-			<div style="display: flex; justify-content: center;">
-				<div id="placer-tooltip" class="tooltip fs-s">
-					u/mercurial
-				</div>
-			</div>
+<body class="fs-s center" oncontextmenu="return false" ontouchstart>
+	<canvas id="glcanvas"></canvas>
+
+	<x-tooltip id="placer" class="border white tooltip faded">
+		u/mercurial
+	</x-tooltip>
+
+	<div id="footer" class="center">
+		<div id="explain" class="shadow white button">
+			<img src="./assets/images/i.svg" height="20px">
+		</div>
+		<div id="place" class="inactive shadow orange button">
+			<div class="fs-l fw-b">Log in to place!</div>
+			<div>(0, 0) 1X</div>
+		</div>
+		<div id="more" class="shadow white button">
+			<img src="./assets/images/dots.svg" width="20px" height="20px">
 		</div>
 	</div>
 
-	<div id="ui">
-		<div style="display: flex; justify-content: center;">
-			<div id="share" class="white shadow button" onpointerup="shareUrl()">
-				<img src="./images/arrow.svg" width="32px" height="32px">
-			</div>
-			<div id="share-tooltip" class="tooltip fs-s">
-				Link copied!
-			</div>
-		</div>
+	<color-picker id="picker" class="lowered"></color-picker>
 
-		<div id="place" class="orange shadow button" onpointerup="openPicker()">
-			<div class="action fs-m"><b>Place!</b></div>
-			<div class="info fs-s">(500, 500) 1X</div>
-		</div>
-		<div id="settings" class="white shadow button" onpointerup="openExtra()">
-			<img src="./images/dots.svg" width="20px" height="20px">
-		</div>
-	</div>
-
-	<div id="picker">
-		<div class="container">
-			<div id="colors">
-				<div class="color" style="background-color: red;" onpointerup="pickColor(this)"></div>
-				<div class="color" style="background-color: orangered;" onpointerup="pickColor(this)"></div>
-				<div class="color" style="background-color: orange;" onpointerup="pickColor(this)"></div>
-				<div class="color" style="background-color: yellow;" onpointerup="pickColor(this)"></div>
-				<div class="color" style="background-color: blue;" onpointerup="pickColor(this)"></div>
-				<div class="color" style="background-color: green;" onpointerup="pickColor(this)"></div>
+	<dialog id="help" class="fs-m fw-l border shadow white">
+		<div class="modal">
+			<div class="close button" tabindex=0>
+				<img src="./assets/images/x.svg" height="15px">
 			</div>
-		</div>
-		<div class="container">
-			<div id="cancel" class="gray shadow button" onpointerup="closePicker()">
-				<img src="./images/x.svg" width="40px" height="40px">
-			</div>
-			<div id="confirm" class="inactive orange shadow button" onpointerup="placeColor()">
-				<img src="./images/checkmark.svg" width="40px" height="40px">
-			</div>
-		</div>
-	</div>
-
-	<div id="extra-screen" class="hidden" onpointerup="closeExtra(true)">
-		<div class="white shadow modal" onpointerup="noop(event)">
-			<div id="close-extra" class="white button" onpointerup="closeExtra()">
-				<img src="./images/x.svg" width="40px" height="40px">
-			</div>
-			<div class="modal-content fs-l">
-				<div class="gray modal-option button" onpointerup="openGithub()">
-					<img src="./images/github.svg" width="30px" height="30px">
-					<b>By Mercurial</b>
+			<div class="fs-xl title">Welcome to ManePlace, the mane place to place manes... and pixels!</div>
+			<div class="center option">
+				<div class="center border block" style="background-color: orange;">
+					<img src="./assets/images/selector.png" height="30px">
 				</div>
-				<div class="gray modal-option button" onpointerup="openManechat()">
-					<img src="./images/discord.svg" width="30px" height="30px">
-					<b>Join Manechat</b>
+				<div>Place a pixel to create something. You can do that every minute!</div>
+			</div>
+			<div class="center option">
+				<div class="center border block" style="background-color: blue;">
+					<img src="./assets/images/cursor.svg" height="30px">
 				</div>
-				<div class="gray modal-option button" onpointerup="openStats()">
-					<img src="./images/stats.svg" width="30px" height="30px">
-					<b>Stats</b>
+				<div>Use the mouse to move around. Try dragging, clicking and scrolling</div>
+			</div>
+			<div class="center option">
+				<div class="center border block" style="background-color: green;">
+					<img src="./assets/images/mouse.svg" height="33px">
 				</div>
+				<div>Use WASD to move, Z/C to zoom, SPACE/ESC to place/close, Q/E to change colors</div>
+			</div>
+			<div class="center option">
+				<div class="center border block" style="background-color: indigo;">
+					<img src="./assets/images/magnifier.svg" height="30px">
+				</div>
+				<div>Zoom in to see who placed a pixel</div>
+			</div>
+			<div id="letsgo" class="fs-l orange button option">
+				<b style="margin-left: 0;">Let's Gooooooo!</b>
 			</div>
 		</div>
-	</div>
+	</dialog>
 
-	<div id="loading-screen">
-		<img src="./images/dance.gif">
-		<div><b>Loading...</b></div>
-	</div>
+	<dialog id="menu" class="fs-l border shadow white">
+		<div class="modal">
+			<div class="close button" tabindex=0>
+				<img src="./assets/images/x.svg" height="15px">
+			</div>
+			<div class="fs-xl title">Menu</div>
+			<a id="github" class="gray button option" href="https://github.com/Manechat/place.manechat.net">
+				<img src="./assets/images/github.svg" width="30px">
+				<b>By Mercurial</b>
+			</a>
+			<div id="configure" class="gray button option">
+				<img src="./assets/images/cog.svg" width="30px">
+				<b>Options</b>
+			</div>
+			<a id="stats" class="gray button option" href="/stats">
+				<img src="./assets/images/stats.svg" width="30px">
+				<b>Stats</b>
+			</a>
+			<div id="moderate" class="hidden gray button option">
+				<img src="./assets/images/wrench.svg" width="30px">
+				<b>Mod tools</b>
+			</div>
+			<div id="logout" class="hidden gray button option">
+				<img src="./assets/images/logout.svg" width="35px">
+				<b>Log out</b>
+			</div>
+		</div>
+	</dialog>
 
-	<script src="https://cdn.jsdelivr.net/npm/howler@2.2.3/dist/howler.min.js"></script>
-	<script src="./lib/panzoom_modified.js"></script>
-	<script src="./script.js"></script>
+	<dialog id="options" class="fs-l border shadow white">
+		<div class="modal">
+			<div class="back button">
+				<img src="./assets/images/left-arrow.svg" height="15px">
+			</div>
+			<div class="close button" tabindex=0>
+				<img src="./assets/images/x.svg" height="15px">
+			</div>
+			<div class="fs-xl low title">Options</div>
+			<div id="toggle-place-on-click" class="gray button option">
+				<b>Click anywhere to place</b>
+				<b class="toggle">OFF</b>
+			</div>
+			<div id="colors" class="gray button option">
+				<b>Copy colors</b>
+			</div>
+		</div>
+	</dialog>
+
+	<dialog id="tools" class="fs-l border shadow white">
+		<div class="modal">
+			<div class="back button">
+				<img src="./assets/images/left-arrow.svg" height="15px">
+			</div>
+			<div class="close button" tabindex=0>
+				<img src="./assets/images/x.svg" height="15px">
+			</div>
+			<div class="fs-xl low title">Mod tools</div>
+			<input id="input" class="center text input option" type="text" placeholder="Enter a command" />
+			<div id="output" class="gray center text option">Output:</div>
+			<div id="command" class="gray button option">
+				<b style="margin-left: 0;">Send command</b>
+			</div>
+		</div>
+	</dialog>
 </body>
 </html>

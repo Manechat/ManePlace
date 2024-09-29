@@ -91,7 +91,7 @@ SERVER.get("/login", (req, res) =>
 	const query = Query.encode({
 		client_id: process.env.DISCORD_CLIENT_ID,
 		response_type: "code",
-		redirect_uri: `http://${req.headers.host}/login/redirect`,
+		redirect_uri: `https://${req.headers.host}/login/redirect`, // TODO: Automatically determine protocol
 		scope: "identify",
 		state: req.query.from // So we can redirect back to stats
 	});
@@ -110,7 +110,7 @@ SERVER.get("/login/redirect", async (req, res) =>
 		client_id: process.env.DISCORD_CLIENT_ID,
 		client_secret: process.env.DISCORD_CLIENT_SECRET,
 		grant_type: "authorization_code",
-		redirect_uri: `http://${req.headers.host}/login/redirect`,
+		redirect_uri: `https://${req.headers.host}/login/redirect`, // TODO: Same
 		code,
 	};
 

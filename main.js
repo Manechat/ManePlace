@@ -80,7 +80,7 @@ IO.gracefulShutdown( () => IO.writeStats(STATS, STATS_PATH) );
 // ---------------- Server ----------------
 
 const SERVER = Polka();
-SERVER.use(Sirv(Path.join(import.meta.dirname, "public")), helpers, session({ secure: false }));
+SERVER.use(Sirv(Path.join(import.meta.dirname, "public")), helpers, session());
 
 
 

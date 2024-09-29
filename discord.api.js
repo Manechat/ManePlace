@@ -1,6 +1,6 @@
-import WebSocket from 'ws';
+import WebSocket from "ws";
 import Crypto from "crypto";
-import { EventEmitter } from 'events';
+import { EventEmitter } from "events";
 import { LazyMap } from "./util.js";
 
 

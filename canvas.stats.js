@@ -43,6 +43,7 @@ export default class Statistics
 	savePixel(event) // on every place event...
 	{
 			if (event.id !== Event.PLACE) return;
+			if (event.userId <= 0) return; // Ignore invalid/special ids TODO: Proper snowflake validation?
 
 			const alignedTimestamp = Util.align(event.timestamp, this.pixelCountInterval);
 
@@ -66,7 +67,7 @@ export default class Statistics
 				if (+timestamp < lowerBound) delete this.pixelCountsOverTime[timestamp];
 			}
 
-			if (event.userId > 0) this.getPersonal(event.userId).pixels.push(event); // TODO: Proper snowflake validation?
+			this.getPersonal(event.userId).pixels.push(event);
 	}
 
 	saveUserCount(event) // on every user change event...

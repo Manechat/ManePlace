@@ -139,7 +139,7 @@ export class Canvas extends EventEmitter
 		this.pixelMap.get(x, () => new LazyMap()).get(y, () => ( {} )).userId = userId;
 		const placeTimestamps = this.userMap.get(userId, () => ( {} )).placeTimestamps ??= {};
 		placeTimestamps.last = timestamp;
-		placeTimestamps.next = timestamp + this.cooldown;
+		placeTimestamps.next = timestamp + this.cooldown * 1000;
 
 		this.emit("dispatch", { id: Event.PLACE, x, y, color, userId, timestamp });
 

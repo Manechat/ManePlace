@@ -194,7 +194,7 @@ document.getElementById("command").onclick = () => // TODO: Move the parsing log
 	else if (base === "cooldown")
 	{
 		endpoint = "/cooldown";
-		data = { cooldown: +args[0] * 1000 };
+		data = { cooldown: +args[0] };
 	}
 
 	if (endpoint)

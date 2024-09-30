@@ -58,6 +58,8 @@ const [
 
 	SELECT_SOUND, CANCEL_SOUND, PICK_SOUND, PLACE_SOUND, ERROR_SOUND, REFRESH_SOUND, CLICK_SOUND,
 
+	PIPE_SOUND,
+
 ] = await Promise.all([
 
 	loadFile("./assets/shaders/tex.vsh"),
@@ -74,6 +76,8 @@ const [
 	MIXER.load("./assets/sounds/error.mp3"),
 	MIXER.load("./assets/sounds/refresh.mp3"),
 	MIXER.load("./assets/sounds/click.mp3"),
+	
+	MIXER.load("./assets/sounds/pipe.mp3"),
 ]);
 
 
@@ -150,6 +154,11 @@ COLORS.onclick = () =>
 	clearTimeout(copyColorsTimeout);
 	copyColorsTimeout = setTimeout(() => COLORS_TEXT.textContent = "Copy colors", 2000);
 	CLICK_SOUND.play();
+};
+
+document.getElementById("pipe").onclick = () =>
+{
+	PIPE_SOUND.play();
 };
 
 // --------------------------------------

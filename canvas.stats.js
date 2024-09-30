@@ -18,7 +18,7 @@ export default class Statistics
 		this.pixelCountsOverTime = {};
 
 		this.totalUserCountOverTime = {};
-		this.userCountOverTime = {};
+		this.userCountOverTime = {}; // TODO: Rename something like maxUsersOverTime?
 		this.mostConcurrentUsers = 0;
 
 		this.personal = new LazyMap();
@@ -75,17 +75,21 @@ export default class Statistics
 		const alignedTimestamp = Util.align(event.timestamp, this.userCountInterval);
 		const count = this._channels.getChannelCount();
 
-		// Add to the total count list
-		this.totalUserCountOverTime[alignedTimestamp] = count;
+		// Make sure a number exists so that the next comparison doesn't fail
+		this.totalUserCountOverTime[alignedTimestamp] ??= 0;
+		// Keep the most concurrent users per interval
+		if (count > this.totalUserCountOverTime[alignedTimestamp]) this.totalUserCountOverTime[alignedTimestamp] = count;
 		// And update the max users
 		if (count > this.mostConcurrentUsers) this.mostConcurrentUsers = count;
 
 		const lowerBound = Date.now() - this.userCountWindow;
 
+		// Make sure a number exists so that the next comparison doesn't fail
+		this.userCountOverTime[alignedTimestamp] ??= 0;
 		// Only add to current count list if within our window
-		if (event.timestamp >= lowerBound)
+		// and if it's the biggest concurrent amount in the current interval
+		if (event.timestamp >= lowerBound && count > this.userCountOverTime[alignedTimestamp])
 		{
-			const count = this._channels.getChannelCount();
 			this.userCountOverTime[alignedTimestamp] = count;
 		}
 

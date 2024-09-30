@@ -585,7 +585,7 @@ function placePixel(color)
 	);
 
 	COMPONENT_STATE.placeTimestamp = Date.now();
-	COMPONENT_STATE.nextPlaceTimestamp = COMPONENT_STATE.placeTimestamp + COMPONENT_STATE.cooldown + 300; // approximate latency until the server response comes
+	COMPONENT_STATE.nextPlaceTimestamp = COMPONENT_STATE.placeTimestamp + COMPONENT_STATE.cooldown * 1000 + 300; // approximate latency until the server response comes
 
 	PICKER.classList.add("lowered");
 	PLACE_SOUND.play();

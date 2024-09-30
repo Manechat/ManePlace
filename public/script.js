@@ -20,6 +20,7 @@ import KeyboardTracker from "./scripts/keyboard.tracker.js";
 const GL = document.getElementById("glcanvas").getContext("webgl2", { alpha: false });
 const MIXER = new AudioMixer(new AudioContext());
 MIXER.getChannel("master").gain.value = 0.2;
+MIXER.createChannel("master_pipe", null);
 const ANIMATOR = new Animator();
 
 const COMPONENT_STATE = StateTracker({ // TODO: migrate more stuff here
@@ -156,10 +157,7 @@ COLORS.onclick = () =>
 	CLICK_SOUND.play();
 };
 
-document.getElementById("pipe").onclick = () =>
-{
-	PIPE_SOUND.play();
-};
+document.getElementById("pipe").onclick = () => PIPE_SOUND.play("master_pipe");
 
 // --------------------------------------
 

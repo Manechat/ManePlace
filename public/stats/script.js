@@ -89,13 +89,11 @@ await loadStats();
 
 // ============ Easter egg ===============
 
-let congratulated = false;
-
 function congratulate()
 {
-	if (congratulated) return;
+	if (window.localStorage.getItem("congratulated") === "true") return;
 
-	congratulated = true;
+	window.localStorage.setItem("congratulated", true);
 
 	const fire = (particleRatio, opts) =>
 	{

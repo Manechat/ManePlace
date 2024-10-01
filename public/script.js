@@ -574,7 +574,8 @@ function placePixel(color)
 		{
 			if (place.error) return console.error(place.error); // TODO: Handle error
 			COMPONENT_STATE.placeTimestamp = place.placeTimestamp;
-			COMPONENT_STATE.nextPlaceTimestamp = place.nextPlaceTimestamp;
+			// Ensure that if the client's clock is ahead or the server's clock is behind, we still wait the entire cooldown
+			COMPONENT_STATE.nextPlaceTimestamp = Math.max(place.nextPlaceTimestamp, COMPONENT_STATE.nextPlaceTimestamp);
 		});
 
 	CANVAS_TEXTURE.set(
@@ -585,7 +586,8 @@ function placePixel(color)
 	);
 
 	COMPONENT_STATE.placeTimestamp = Date.now();
-	COMPONENT_STATE.nextPlaceTimestamp = COMPONENT_STATE.placeTimestamp + COMPONENT_STATE.cooldown * 1000 + 300; // approximate latency until the server response comes
+	// approximate latency until the server response comes
+	COMPONENT_STATE.nextPlaceTimestamp = COMPONENT_STATE.placeTimestamp + COMPONENT_STATE.cooldown * 1000 + 300;
 
 	PICKER.classList.add("lowered");
 	PLACE_SOUND.play();

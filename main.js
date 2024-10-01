@@ -203,8 +203,6 @@ SERVER.post("/placer", async (req, res) =>
 	let nick = member?.nick ||
 		member?.user?.global_name ||
 		member?.user?.username;
-	
-	console.log(userId, nick);
 
 	if (!nick)
 	{
@@ -213,9 +211,6 @@ SERVER.post("/placer", async (req, res) =>
 			.catch(() => null);
 
 		nick = user?.global_name || user?.username;
-		
-		console.log(nick, user);
-		console.log();
 	}
 
 	res.json({ placer: nick });

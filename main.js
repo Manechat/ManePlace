@@ -197,7 +197,20 @@ SERVER.post("/placer", async (req, res) =>
 	const userId = CANVAS.getPlacer(req.body.x, req.body.y);
 	const member = await DISCORD.getGuildMember(CONFIG.guildId, userId);
 
-	res.json({ placer: member?.nick || member?.user?.global_name || member?.user?.username }); // TODO: Name for users not in the server
+	let nick = member?.nick ||
+		member?.user?.global_name ||
+		member?.user?.username;
+
+	if (!nick)
+	{
+		const user = await fetch(`https://discord.com/api/users/${userId}`, { headers: { "Authorization": process.env.BOT_TOKEN } })
+			.then(r => r.json())
+			.catch(() => null);
+
+		nick = user?.global_name || user?.username;
+	}
+
+	res.json({ placer: nick });
 });
 
 

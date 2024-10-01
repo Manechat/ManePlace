@@ -203,7 +203,7 @@ SERVER.post("/placer", async (req, res) =>
 
 	if (!nick)
 	{
-		const user = await fetch(`https://discord.com/api/users/${userId}`, { headers: { "Authorization": process.env.BOT_TOKEN } })
+		const user = await fetch(`https://discord.com/api/users/${userId}`, { headers: { "Authorization": `Bot ${process.env.BOT_TOKEN}` } })
 			.then(r => r.json())
 			.catch(() => null);
 

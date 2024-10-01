@@ -195,6 +195,9 @@ SERVER.post("/placer", async (req, res) =>
 	if (!Number.isInteger(req.body.x) || !Number.isInteger(req.body.y)) return res.status(400).end();
 
 	const userId = CANVAS.getPlacer(req.body.x, req.body.y);
+	
+	if (!userId) return res.json({ placer: null });
+	
 	const member = await DISCORD.getGuildMember(CONFIG.guildId, userId);
 
 	let nick = member?.nick ||
@@ -205,7 +208,7 @@ SERVER.post("/placer", async (req, res) =>
 
 	if (!nick)
 	{
-		const user = await fetch(`https://discord.com/api/users/${userId}`, { headers: { "Authorization": `Bot ${process.env.BOT_TOKEN}` } })
+		const user = await fetch(`https://discord.com/api/users/${userId}`, { headers: { "Authorization": `Bot ${process.env.DISCORD_TOKEN}` } })
 			.then(r => r.json())
 			.catch(() => null);
 

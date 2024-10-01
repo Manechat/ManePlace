@@ -284,6 +284,14 @@ SERVER.get("/statistics", (req, res) =>
 	res.json(stats);
 });
 
+SERVER.get("/statistics-for/:id", async (req, res) =>
+{
+	if (!req.session?.userId) return res.status(401).end();
+	if (await getUserStatus(req.session.userId) !== UserStatus.ADMIN) return res.status(403).end();
+
+	res.json(STATS.getPersonal(req.params.id));
+});
+
 
 
 // ---------------- Start ----------------

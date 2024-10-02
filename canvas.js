@@ -133,7 +133,14 @@ export class Canvas extends EventEmitter
 		if (absoluteX < 0 || absoluteX > this.image.sizeX || absoluteY < 0 || absoluteY > this.image.sizeY) return { error: ErrorCode.OUT_OF_BOUNDS };
 		if (!this.colors.includes(color)) return { error: ErrorCode.COLOR_NOT_FOUND };
 		if (this.cooldown < 0) return { error: ErrorCode.CANVAS_CLOSED };
-		if (this.getPlaceTimestampsFor(userId)?.next > timestamp) return { error: ErrorCode.ON_COOLDOWN };
+
+		const nextPlaceTimestamp = this.getPlaceTimestampsFor(userId)?.next;
+		
+		if (nextPlaceTimestamp > timestamp) return {
+			error: ErrorCode.ON_COOLDOWN,
+			remainingCooldown: nextPlaceTimestamp - timestamp,
+			previousColor: this.image.getColor(absoluteX, absoluteY)
+		};
 
 		this.image.setColor(absoluteX, absoluteY, color);
 		this.pixelMap.get(x, () => new LazyMap()).get(y, () => ( {} )).userId = userId;
@@ -143,7 +150,7 @@ export class Canvas extends EventEmitter
 
 		this.emit("dispatch", { id: Event.PLACE, x, y, color, userId, timestamp });
 
-		return { placeTimestamp: placeTimestamps.last, nextPlaceTimestamp: placeTimestamps.next };
+		return { cooldown: placeTimestamps.next - placeTimestamps.last };
 	}
 
 	expand(nx, ny, px, py, userId, timestamp = Date.now())

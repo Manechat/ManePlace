@@ -572,10 +572,20 @@ function placePixel(color)
 		.then(r => r.json())
 		.then(place =>
 		{
-			if (place.error) return console.error(place.error); // TODO: Handle error
-			COMPONENT_STATE.placeTimestamp = place.placeTimestamp;
-			// Ensure that if the client's clock is ahead or the server's clock is behind, we still wait the entire cooldown
-			COMPONENT_STATE.nextPlaceTimestamp = Math.max(place.nextPlaceTimestamp, COMPONENT_STATE.nextPlaceTimestamp);
+			if (!place.error) return COMPONENT_STATE.nextPlaceTimestamp = Date.now() + place.cooldown;
+
+			COMPONENT_STATE.nextPlaceTimestamp = Date.now() + place.remainingCooldown;
+
+			CANVAS_TEXTURE.set(
+				x - canvasX + CANVAS_TEXTURE.width / 2,
+				y - canvasY + CANVAS_TEXTURE.height / 2,
+				1, 1,
+				new Uint8Array([ ...Calc.unpackRGB(place.previousColor), 255 ])
+			);
+
+			REFRESH_SOUND.play();
+			
+			return console.error("Error while placing pixel:", place.error);
 		});
 
 	CANVAS_TEXTURE.set(

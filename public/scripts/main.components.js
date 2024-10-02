@@ -117,10 +117,8 @@ export function RefreshTimerComponent(sound)
 	{
 		const delta = state.nextPlaceTimestamp - Date.now();
 
-		if (delta > 0)
-		{
-			clearTimeout(timer);
-			timer = setTimeout(() => sound.play(), delta);
-		}
+		clearTimeout(timer);
+
+		if (delta > 0) timer = setTimeout(() => sound.play(), delta);
 	};
 }
